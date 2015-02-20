@@ -1,0 +1,85 @@
+---
+title: "Prediction"
+author: "Ana Kovacevic"
+date: "Monday, February 02, 2015"
+output: html_document
+---
+
+This is analysis of study "Human Activity Recognition". This human activity recognition research has traditionally focused on discriminating between different activities, i.e. to predict "which" activity was performed at a specific point in time.
+
+Six young health participants were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions: exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E).
+
+Read more: http://groupware.les.inf.puc-rio.br/har#weight_lifting_exercises#ixzz3S2ss35bn
+
+The goal of this analysis is to predict the manner in which they did the exercise. This is the "classe" variable in the training set.
+
+
+First step is 'load the data'.
+
+```{r}
+trainUrl <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testUrl <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+dataTrain=read.csv(url(trainUrl),header=T,sep=",",na.strings=c("NA","#DIV/0!",""))
+dataTest=read.csv(url(testUrl),header=T,sep=",",na.strings=c("NA","#DIV/0!",""))
+str(dataTrain)
+```
+
+After loading the data, what is necessary is to slice data in two partitions. I decide to split data set so that 70% of the data will be for train and 30% of the data for testing.  
+
+```{r}
+library(caret)
+inTrain<-createDataPartition(y=dataTrain$classe,p=0.70,list=FALSE)
+training<-dataTrain[inTrain,]
+testing<-dataTrain[-inTrain,]
+summary(training)
+```
+
+Next step is data cleaning. For better performance of the algorithm, we need to remove attributes which are not useful for predicting output. Form data structure ('str' function) we can see that the first few variables are not valuable for our prediction. From the summary of data we can see that there are a lot of variables with almost all NAs. So we need to leave only predictors which are numeric and without missing values.
+
+
+```{r}
+vars <- sapply(1:dim(training)[2], function(x) all(!is.na(training[,x]) & is.numeric(training[,x])))
+vars[1:7]<-F
+
+#new training data is going to be
+train_data=cbind(training[,vars],classe=training$classe)
+dim(train_data)
+
+#test must has same attributes as training data
+test_data=cbind(testing[,vars],classe=testing$classe)
+dim(test_data)
+```
+
+```{r}
+table(train_data$classe)
+
+```
+
+Now, we can use algorithm to predict the outcome. 
+Because our outcome variable has five classes, the best algorithm would be decision tree.
+
+First classification tree "out of the box".
+```{r}
+library(caret)
+RpartFit<-train(classe ~ .,method="rpart",data=train_data)
+print(RpartFit$finalModel)
+```
+
+Evaluation of the model
+```{r}
+Rpart_predictions=predict(RpartFit,newdata=test_data)
+confusionMatrix(Rpart_predictions, test_data$classe)
+```
+
+As we can see that the accuracy is very low with this algorithm, we should try with another. So I tried also with a random forest, which is ensemble alorithm.
+
+```{r}
+library(randomForest)
+forestFit <- randomForest(classe ~. , data=train_data,method="class")
+
+
+Forest_predictions <- predict(forestFit, test_data, type = "class")
+confusionMatrix(Forest_predictions, test_data$classe)
+```
+It can be seen that the accuracy is 99%, so this is algorithm that I will use for prediction on test set.
